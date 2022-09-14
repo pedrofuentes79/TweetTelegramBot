@@ -1,12 +1,12 @@
 import requests
 import os
-import json
-from dateutil.parser import parse
+import pytz
 import datetime
+from dateutil.parser import parse
 from delete_messages import delete_messages
 from send_message import send_message
 from jsonFileManagement import get_msg_ids, save_message_id, delete_content_from_chat_id
-import pytz
+
 
 chat_ids = ["5586625183"]
 twitter_accounts = ["AlertaNews24", "porquetendencia"]
@@ -22,9 +22,7 @@ yesterday_date = (datetime.datetime.utcnow() - datetime.timedelta(days=1))
 
 
 def bearer_oauth(r):
-    """
-    Method required by bearer token authentication.
-    """
+    #Method required by bearer token authentication.
 
     r.headers["Authorization"] = f"Bearer {bearer_token}"
     r.headers["User-Agent"] = "v2FullArchiveSearchPython"
@@ -39,40 +37,43 @@ def connect_to_endpoint(url, params):
     return response.json()
 
 
-def main(query_params):
-    #connect to endpoint
-    json_response = connect_to_endpoint(search_url, query_params)["data"]
-
+def main():
+    #deletes previous messages in each chat
     for chat_id in chat_ids:
-        #deletes previous messages in the chat
-        msg_id_list = get_msg_ids(chat_id="5586625183")
+        msg_id_list = get_msg_ids(chat_id=chat_id)
         if msg_id_list is not []:
             for msg in msg_id_list:
                 delete_messages(msg, chat_id=chat_id)
-        delete_content_from_chat_id(chat_id=chat_id)    
-        #iterates through the tweets in a reversed manner so that the "oldest" ones are sent first
-        for tweet in reversed(json_response):
-            #get the tweet date and parse it to a dt object
-            tweet_date_str = tweet["created_at"]
-            tweet_date = parse(tweet_date_str, yearfirst=True)
+        delete_content_from_chat_id(chat_id=chat_id)  
+    #For each profile, sends to each chat the last twenty tweets 
+    #only if the tweet was published in the last 24hs
+    for profile in twitter_accounts:
+        for chat_id in chat_ids:
+            #connect to endpoint
+            query_params = {'query': '(from:'+ profile + ')','tweet.fields': 'created_at'}
+            json_response = connect_to_endpoint(search_url, query_params)["data"]
             
-            #change the timezone to argentina's and format it
-            local_tz_tweet_date_str = tweet_date.astimezone(pytz.timezone("America/Argentina/Buenos_Aires"))
-            local_tz_tweet_date_str = local_tz_tweet_date_str.strftime("%d/%m %H:%M")
 
-            #if the tweet has been posted 24hs prior to the execution of this script, send it
-            if ( tweet_date.timestamp() > yesterday_date.timestamp() ):
-                response, msg_id = send_message(txt=tweet["text"], 
-                                                date=local_tz_tweet_date_str, chat_id=chat_id)
-                if response['ok']:
-                    print("message sent")
-                    save_message_id(chat_id=chat_id, msg_id=msg_id)
-                else:
-                    print("SOMETHING WENT WRONG. CHECK THE RESPONSE")
-                    print(response)
+            #iterates through the tweets in a reversed manner so that the "oldest" ones are sent first
+            for tweet in reversed(json_response):
+                #get the tweet date and parse it to a dt object
+                tweet_date_str = tweet["created_at"]
+                tweet_date = parse(tweet_date_str, yearfirst=True)
+                
+                #change the timezone to argentina's and format it
+                local_tz_tweet_date_str = tweet_date.astimezone(pytz.timezone("America/Argentina/Buenos_Aires"))
+                local_tz_tweet_date_str = local_tz_tweet_date_str.strftime("%d/%m %H:%M")
 
-
+                #if the tweet has been posted 24hs prior to the execution of this script, send it
+                if ( tweet_date.timestamp() > yesterday_date.timestamp() ):
+                    response, msg_id = send_message(txt=tweet["text"], 
+                                                    date=local_tz_tweet_date_str, chat_id=chat_id)
+                    if response['ok']:
+                        print("message sent")
+                        save_message_id(chat_id=chat_id, msg_id=msg_id)
+                    else:
+                        print("SOMETHING WENT WRONG. CHECK THE RESPONSE")
+                        print(response)
+                        
 if __name__ == "__main__":
-    for id in twitter_accounts:
-        query_params = {'query': '(from:'+ id + ')','tweet.fields': 'created_at'}
-        main(query_params)
+    main()
