@@ -2,14 +2,14 @@ import json, os, tempfile
 chat_id = "3566"
 msg_id = 3568
 
-file_location = "yourProjectDirectory" + "/messages.json"
+file_location = "/home/pedranji/Projects/TelegramBot/messages.json"
 
 
 def save_message_id(chat_id, msg_id):
     #Checks for the messages.json file 
     #if it does not exist, creates it and adds the entry with the chat_id and the [msg_id]
-    if not os.path.exists("/home/pedranji/Projects/TelegramBot/messages.json"):
-        with open("/home/pedranji/Projects/TelegramBot/messages.json", "a") as f:
+    if not os.path.exists(file_location):
+        with open(file_location, "a") as f:
             f.write("{" + f'"{chat_id}": {[msg_id]}' + "}")
             return 200
     else:
